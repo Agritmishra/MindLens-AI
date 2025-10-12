@@ -3,3 +3,5 @@ transformers
 torch
 matplotlib
 numpy
+huggingface_hub
+python-dotenv
