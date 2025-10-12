@@ -10,7 +10,7 @@ st.set_page_config(
 import textwrap
 from insight_engine import InsightEngine
 
-MODEL_CLASSIFIER = "MODEL_CLASSIFIER = 'Agritmishra/emotion-tiny-distilbert'"
+MODEL_CLASSIFIER ="Agritmishra/emotion-tiny-distilbert"
 MODEL_SUMMARIZER = None 
 
 # Create engine,cached resource so it doesn't re-load on every rerun
