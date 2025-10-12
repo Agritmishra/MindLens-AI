@@ -1,7 +1,6 @@
 # app.py
 import streamlit as st
 
-# Streamlit page config MUST be the first streamlit command.
 st.set_page_config(
     page_title="MindLens – Your Reflection Companion",
     page_icon="🧠",
@@ -12,13 +11,10 @@ st.set_page_config(
 import textwrap
 from insight_engine import InsightEngine
 
-# ----------- Configuration: set your model IDs here -------------
-# If you uploaded a fine-tuned classifier model to HF, put the repo id here:
-MODEL_CLASSIFIER = "your-username/emotion-tiny-distilbert"  # <-- change this to your model id OR leave None
+MODEL_CLASSIFIER = None
 MODEL_SUMMARIZER = None  # optional: "sshleifer/distilbart-cnn-12-6" or None
-# ----------------------------------------------------------------
 
-# Create engine (cached resource so it doesn't re-load on every rerun)
+# Create engine , cached resource so it doesn't re-load on every rerun
 @st.cache_resource
 def get_engine():
     return InsightEngine(classifier_model=MODEL_CLASSIFIER, summarizer_model=MODEL_SUMMARIZER)
@@ -91,7 +87,7 @@ if submitted:
         for s in result.get("suggestions", []):
             st.markdown(f"- {s}")
 
-        st.markdown("</div></div>", unsafe_allow_html=True)  # close card and main
+        st.markdown("</div></div>", unsafe_allow_html=True)  # 
 
-# small footer / helpful note
-st.markdown("<div style='text-align:center;color:#777;margin-top:18px;font-size:13px;'>Tip: For best classification accuracy upload your small fine-tuned classifier to Hugging Face and put the repo-id in the code (see top of app.py).</div>", unsafe_allow_html=True)
+# helpful note
+st.markdown("<div style='text-align:center;color:#777;margin-top:18px;font-size:13px;'>Note: states like happines/joy may show as Optimist/neutral.</div>", unsafe_allow_html=True)
