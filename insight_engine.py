@@ -1,53 +1,13 @@
 import re
 import random
 import os
-from collections import Counter
 
 try:
     from transformers import pipeline
 except Exception:
     pipeline = None
 
-from huggingface_hub import login
-from dotenv import load_dotenv
-
-# load token for private model
-load_dotenv()
-token = os.getenv("HF_TOKEN")
-if token:
-    try:
-        login(token=token)
-        print("huggingface login ok")
-    except Exception as e:
-        print("login failed:", e)
-else:
-    print("no token found, using fallback")
-
 random.seed(42)
-
-# insight_engine.py
-"""
-InsightEngine — small, robust analysis engine for MindLens.
-Loads (if available):
- - a fine-tuned text-classifier (recommended)
- - or zero-shot classifiers (fallback)
- - a summarization pipeline (optional)
-If any model load fails we gracefully fallback to lightweight heuristics
-so the app continues running.
-"""
-
-import re
-import random
-from collections import Counter
-
-# try importing transformers pipelines; if not available ,continue with heuristics
-try:
-    from transformers import pipeline
-except Exception:
-    pipeline = None
-
-random.seed(42)
-
 
 class InsightEngine:
     def __init__(
@@ -55,33 +15,45 @@ class InsightEngine:
         classifier_model: str | None = None,
         summarizer_model: str | None = None,
     ):
-        
-        self.classifier_model = classifier_model  
-        self.summarizer_model = summarizer_model  
+        # store model names
+        self.classifier_model = classifier_model
+        self.summarizer_model = summarizer_model
 
         # runtime handles
         self.classifier = None
         self.zero_shot = None
         self.summarizer = None
 
-        # zero-shot models (light -> heavier)
-        self.zero_shot_candidates = [
-            "typeform/distilbert-base-uncased-mnli",
-            "valhalla/distilbart-mnli-12-1",
-        ]
+        # Hugging Face login
+        from dotenv import load_dotenv
+        from huggingface_hub import login
+        import os
 
-        # try to load classifier (text-classification) first
+        load_dotenv()
+        token = os.getenv("HF_TOKEN")
+        if token:
+            try:
+                login(token=token)
+            except Exception:
+                pass 
+
+        # zero-shot model candidates.....
+        self.zero_shot_candidates = [
+            "typeform/distilbert-base-uncased-mnli","valhalla/distilbart-mnli-12-1",]
+
+        # Attempt model loading 
         if pipeline is not None:
             self._try_load_models()
 
-        # small prompt banks and micro-actions 
+        # prompt banks & micro-actions......
         self._build_prompt_banks()
 
-        # simple lexicons
-        self._positive_words = set(
-            ["good", "great", "happy", "proud", "ok", "well", "better", "calm", "relieved", "optimistic"])
-        self._negative_words = set(
-            ["sad", "depressed", "angry", "stressed", "anxious", "worried", "scared", "upset", "tired", "down"])
+        # lexical emotion cues
+        self._positive_words = {
+            "good", "great", "happy", "proud", "ok", "well","better", "calm", "relieved", "optimistic"}
+        self._negative_words = {
+        "sad", "depressed", "angry", "stressed", "anxious","worried", "scared", "upset", "tired", "down"}
+
 
     def _try_load_models(self):
         # 1) try user classifier (fine-tuned)
@@ -403,7 +375,7 @@ class InsightEngine:
             ]
         }
 
-    # --- lightweight helpers
+    # lightweight helpers
     
     @staticmethod
     def _sentences(text):
@@ -412,30 +384,29 @@ class InsightEngine:
         return [p.strip() for p in parts if p.strip()]
 
     def _keyword_emotion(self, text):
-        # crude lexical heuristic to decide mood
         t = text.lower()
         pos = sum(1 for w in re.findall(r'\w+', t) if w in self._positive_words)
         neg = sum(1 for w in re.findall(r'\w+', t) if w in self._negative_words)
-        if pos > neg + 1:
-            return "optimistic", 0.55
-        if neg > pos + 1:
-            # if many anxious words present
-            if any(x in t for x in ["anx", "worry", "panic", "nerv"]):
-                return "anxious", 0.5
-            if any(x in t for x in ["angr", "rage", "fury"]):
-                return "angry", 0.5
-            return "sad", 0.5
-        # neutral or confused fallback
-        if any(x in t for x in ["confus", "uncertain", "not sure"]):
-            return "confused", 0.45
-        return "neutral", 0.4
 
-    # Zero-shot classifier wrapper + mapping
+        if pos > neg + 1:
+            return "optimistic", 0.55, {}
+
+        if neg > pos + 1:
+            if any(x in t for x in ["anx", "worry", "panic", "nerv"]):
+                return "anxious", 0.5, {}
+            if any(x in t for x in ["angr", "rage", "fury"]):
+                return "angry", 0.5, {}
+            return "sad", 0.5, {}
+
+        if any(x in t for x in ["confus", "uncertain", "not sure"]):
+            return "confused", 0.45, {}
+
+        return "neutral", 0.4, {}
+
+
     def _zero_shot_mood(self, text):
         """
-        If zero-shot classifier exists, use it with clear emotion labels.
-        If low confidence, fall back to keyword heuristics.
-        Returns: (mood_key, confidence, scores_dict)
+        If zero-shot classifier exists, use it with clear emotion labels. if low confidence, fall back to keyword heuristics.
         """
         candidate_labels = [
             "joy", "sadness", "anger", "fear", "neutral",
@@ -466,18 +437,20 @@ class InsightEngine:
                     if top_score >= 0.45:
                         return mapped, top_score, dict(zip(labels, scores))
                     # low confidence -> try keyword fallback
-                    fallback_mood, fallback_score = self._keyword_emotion(text)
+                    fallback_mood, fallback_score, _ = self._keyword_emotion(text)
                     return fallback_mood, top_score, dict(zip(labels, scores))
+
             except Exception:
                 pass
 
         # no classifier -> keyword
-        return self._keyword_emotion(text)
+        mood, conf, scores = self._keyword_emotion(text)
+        return mood, conf, scores
+
 
     def _classify_text(self, text):
         """
-        Try to use a fine-tuned classifier (text-classification).
-        If that returns a label set we map it; otherwise use zero-shot or keyword.
+        Try to use a fine-tuned classifier.if that returns a label set we map it; otherwise use zero-shot or keyword.
         """
         # 1) fine-tuned text-classifier 
         if self.classifier:
@@ -486,7 +459,7 @@ class InsightEngine:
                 if isinstance(out, list) and out:
                     lab = out[0].get("label", "").lower()
                     score = float(out[0].get("score", 0.0))
-                    # try mapping common outputs into our mood keys
+                    # try mapping common outputs into mood keys
                     if "joy" in lab or "happy" in lab or "positive" in lab:
                         return "optimistic", score, {lab: score}
                     if "sad" in lab or "depress" in lab:
@@ -499,7 +472,7 @@ class InsightEngine:
                         return "neutral", score, {lab: score}
                     if "confus" in lab:
                         return "confused", score, {lab: score}
-                    # fallback to label as-is
+                    # fallback to label
                     return lab, score, {lab: score}
             except Exception:
                 pass
@@ -524,8 +497,7 @@ class InsightEngine:
 
     def balance_score(self, text):
         """
-        Return a simple 'balance' number 0..100 based on positivity - negativity.
-        This is heuristic, intentionally lightweight.
+        Return a simple 'balance' number 0..100 based on positivity - negativity. This is heuristic.
         """
         words = re.findall(r'\w+', text.lower())
         if not words:
@@ -569,7 +541,7 @@ class InsightEngine:
             result["scores"] = scores
         except Exception:
             # fallback
-            mood, conf = self._keyword_emotion(text)
+            mood, conf, _ = self._keyword_emotion(text)
             result["mood"] = mood
             result["mood_confidence"] = float(conf)
             result["scores"] = {}
@@ -584,11 +556,11 @@ class InsightEngine:
         prompts = self.mood_prompts.get(result["mood"], self.mood_prompts.get("neutral", []))
         actions = self.micro_actions.get(result["mood"], self.micro_actions.get("neutral", []))
 
-        # pick two items each for readability
+        # pick two items each
         result["reflection_prompts"] = random.sample(prompts, min(2, len(prompts)))
         result["micro_actions"] = random.sample(actions, min(2, len(actions)))
 
-        # pragmatic suggestions (safe, brief)
+        # suggestions (safe, brief)
         result["suggestions"] = [
             "If you feel overwhelmed, try one tiny, concrete next step (2–10 minutes).",
             "If the mood persists, consider talking to a trusted person or a professional.",
