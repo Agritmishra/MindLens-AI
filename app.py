@@ -1,18 +1,16 @@
-# app.py
+
 import streamlit as st
 
 st.set_page_config(
     page_title="MindLens – Your Reflection Companion",
-    page_icon="🧠",
     layout="centered",
 )
 
-# Now safe to import the rest
 import textwrap
 from insight_engine import InsightEngine
 
 MODEL_CLASSIFIER = None
-MODEL_SUMMARIZER = None  # optional: "sshleifer/distilbart-cnn-12-6" or None
+MODEL_SUMMARIZER = None 
 
 # Create engine , cached resource so it doesn't re-load on every rerun
 @st.cache_resource
@@ -22,7 +20,7 @@ def get_engine():
 
 engine = get_engine()
 
-# --- Page UI ---
+# UI
 st.markdown(
     """
     <style>
@@ -40,11 +38,11 @@ st.markdown(
 )
 
 st.markdown("<div class='main'>", unsafe_allow_html=True)
-st.markdown("<div class='title'>🧠 MindLens — Your Reflection Companion</div>", unsafe_allow_html=True)
+st.markdown("<div class='title'> MindLens — Your Reflection Companion</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtitle'>Write how you're feeling and get a short insight, gentle reflection prompts and micro-actions.</div>", unsafe_allow_html=True)
 
 with st.form("reflection_form"):
-    text = st.text_area("💬 Write your thoughts:", height=220, placeholder="Example: I've been working hard and feel tired but also proud...", key="input_text")
+    text = st.text_area(" Write your thoughts:", height=220, placeholder="Example: I've been working hard and feel tired but also proud...", key="input_text")
     submitted = st.form_submit_button("✨ Analyze My Thoughts")
 
 # small note about model availability
@@ -60,7 +58,7 @@ if submitted:
         with st.spinner("Analyzing — one moment..."):
             result = engine.analyze(text)
 
-        # Render output in a clean white card
+        # Render output 
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.markdown("<div style='display:flex;align-items:center;gap:12px;'><div style='font-size:20px'>🔮</div><div style='font-weight:700'>Summary</div></div>", unsafe_allow_html=True)
         st.markdown(f"<div style='margin-top:8px'>{result.get('summary','')}</div>", unsafe_allow_html=True)
@@ -90,4 +88,4 @@ if submitted:
         st.markdown("</div></div>", unsafe_allow_html=True)  # 
 
 # helpful note
-st.markdown("<div style='text-align:center;color:#777;margin-top:18px;font-size:13px;'>Note: states like happines/joy may show as Optimist/neutral.</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align:center;color:#777;margin-top:18px;font-size:13px;'>Note: states like happines/joy may appear as Optimist/neutral.</div>", unsafe_allow_html=True)
